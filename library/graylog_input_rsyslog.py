@@ -231,6 +231,7 @@ import base64
 from ansible.module_utils.basic import AnsibleModule
 from ansible.module_utils.urls import fetch_url, to_text
 import re
+import ansible.module_utils.graylog as graylog_utils
 
 def search_by_name(module, base_url, headers, title):
     
@@ -301,34 +302,6 @@ def action(module, base_url, headers):
     return info['status'], info['msg'], content, url
 
 
-def get_token(module, endpoint, username, password, allow_http):
-
-    headers = '{ "Content-Type": "application/json", "X-Requested-By": "Graylog API", "Accept": "application/json" }'
-
-    url = endpoint + "/api/system/sessions"
-
-    payload = {}
-    payload['username'] = username
-    payload['password'] = password
-    payload['host'] = endpoint
-
-    response, info = fetch_url(module=module, url=url, headers=json.loads(headers), method='POST', data=module.jsonify(payload))
-
-    if info['status'] != 200:
-        module.fail_json(msg="Fail: %s" % ("Status: " + str(info['msg']) + ", Message: " + str(info['body'])))
-
-    try:
-        content = to_text(response.read(), errors='surrogate_or_strict')
-        session = json.loads(content)
-    except AttributeError:
-        content = info.pop('body', '')
-
-    session_string = session['session_id'] + ":session"
-    session_bytes = session_string.encode('utf-8')
-    session_token = base64.b64encode(session_bytes)
-
-    return session_token
-
 def main():
     module = AnsibleModule(
         argument_spec=dict(
@@ -386,7 +359,7 @@ def main():
 
     base_url = endpoint + "/api/system/inputs"
 
-    api_token = get_token(module, endpoint, graylog_user, graylog_password, allow_http)
+    api_token = graylog_utils.get_token(module, endpoint, graylog_user, graylog_password, allow_http)
     headers = '{ "Content-Type": "application/json", "X-Requested-By": "Graylog API", "Accept": "application/json", \
                 "Authorization": "Basic ' + api_token.decode() + '" }'
 
