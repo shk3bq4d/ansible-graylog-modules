@@ -159,6 +159,7 @@ import json
 import base64
 from ansible.module_utils.basic import AnsibleModule
 from ansible.module_utils.graylog import GraylogApi
+from ansible.errors import AnsibleError
 
 ROLES_URI = '/api/roles/'
 
@@ -170,14 +171,14 @@ def ensure(module, api):
     data = {'description': module.params['description'], 'name': module.params['name'], 'permissions': module.params['permissions'], 'read_only': module.params['read_only']}
     if exists:
       if role != data:
-        api.update(ROLES_URI, data)
+        api.update(ROLES_URI + module.params['name'], data)
         changed = True
     else:
       api.create(ROLES_URI, data)
       changed = True
   else:
     if exists:
-      api.delete(ROLES_URI+'/'+module.params['name'])
+      api.delete(ROLES_URI + module.params['name'])
       changed = True
   return changed
 
@@ -196,10 +197,12 @@ def main():
             read_only=dict(type='bool', default=False)
         )
     )
-
-    api = GraylogApi(module.params['graylog_user'], module.params['graylog_password'], module.params['endpoint'], validate_certs=module.params['validate_certs'])
-    api.login()
-    changed = ensure(module, api)
+    try:
+      api = GraylogApi(module.params['graylog_user'], module.params['graylog_password'], module.params['endpoint'], validate_certs=module.params['validate_certs'])
+      api.login()
+      changed = ensure(module, api)
+    except AnsibleError as error:
+      module.fail_json(msg='unexpected error: ' + str(error))
     module.exit_json(changed=changed)
 
 

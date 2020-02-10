@@ -11,6 +11,21 @@
 
   tasks:
 
+    - name: delete testdude role
+      graylog_roles:
+        endpoint: "{{ endpoint }}"
+        graylog_user: "{{ username }}"
+        graylog_password: "{{ password }}"
+        state: absent
+        name: testdude
+      register: role
+
+    - name: check roles
+      assert:
+        that:
+          - not role.changed
+
+
     - name: create Admin role
       graylog_roles:
         endpoint: "{{ endpoint }}"
@@ -20,9 +35,71 @@
         name: testdude
         description: wat
         permissions: ['sreams:read:*']
-      register: role_1
+      register: role
 
     - name: check roles
       assert:
         that:
-          - role_1.changed
+          - role.changed
+
+    - name: attempt create Admin role
+      graylog_roles:
+        endpoint: "{{ endpoint }}"
+        graylog_user: "{{ username }}"
+        graylog_password: "{{ password }}"
+        state: present
+        name: testdude
+        description: wat
+        permissions: ['sreams:read:*']
+      register: role
+
+    - name: check role2
+      assert:
+        that:
+          - not role.changed
+
+    - name: update testdude role
+      graylog_roles:
+        endpoint: "{{ endpoint }}"
+        graylog_user: "{{ username }}"
+        graylog_password: "{{ password }}"
+        state: present
+        name: testdude
+        description: wat
+        permissions: ['sreams:read:*', 'views:read:*']
+      register: role
+
+    - name: check role3
+      assert:
+        that:
+          - role.changed
+
+    - name: attempt update testdude role
+      graylog_roles:
+        endpoint: "{{ endpoint }}"
+        graylog_user: "{{ username }}"
+        graylog_password: "{{ password }}"
+        state: present
+        name: testdude
+        description: wat
+        permissions: ['sreams:read:*', 'views:read:*']
+      register: role
+
+    - name: check role4
+      assert:
+        that:
+          - not role.changed
+
+    - name: cleanup testdude role
+      graylog_roles:
+        endpoint: "{{ endpoint }}"
+        graylog_user: "{{ username }}"
+        graylog_password: "{{ password }}"
+        state: absent
+        name: testdude
+      register: role
+
+    - name: check roles
+      assert:
+        that:
+          - role.changed
