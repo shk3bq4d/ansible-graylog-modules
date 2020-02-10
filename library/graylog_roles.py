@@ -158,88 +158,28 @@ url:
 import json
 import base64
 from ansible.module_utils.basic import AnsibleModule
-from ansible.module_utils.urls import fetch_url, to_text
 from ansible.module_utils.graylog import GraylogApi
 
-
-def create(module, base_url, headers):
-
-    url = base_url
-
-    payload = {}
-
-    for key in ['name', 'description', 'permissions', 'read_only']:
-        if module.params[key] is not None:
-            payload[key] = module.params[key]
-
-    response, info = fetch_url(module=module, url=url, headers=json.loads(headers), method='POST', data=module.jsonify(payload))
-
-    if info['status'] != 201:
-        module.fail_json(msg="Fail: %s" % ("Status: " + str(info['msg']) + ", Message: " + str(info['body'])))
-
-    try:
-        content = to_text(response.read(), errors='surrogate_or_strict')
-    except AttributeError:
-        content = info.pop('body', '')
-
-    return info['status'], info['msg'], content, url
+ROLES_URI = '/api/roles/'
 
 
-def update(module, base_url, headers):
-
-    url = "/".join([base_url, module.params['name']])
-
-    payload = {}
-
-    for key in ['name', 'description', 'permissions', 'read_only']:
-        if module.params[key] is not None:
-            payload[key] = module.params[key]
-
-    response, info = fetch_url(module=module, url=url, headers=json.loads(headers), method='PUT', data=module.jsonify(payload))
-
-    if info['status'] != 200:
-        module.fail_json(msg="Fail: %s" % ("Status: " + str(info['msg']) + ", Message: " + str(info['body'])))
-
-    try:
-        content = to_text(response.read(), errors='surrogate_or_strict')
-    except AttributeError:
-        content = info.pop('body', '')
-
-    return info['status'], info['msg'], content, url
-
-
-def delete(module, base_url, headers):
-
-    url = "/".join([base_url, module.params['name']])
-
-    response, info = fetch_url(module=module, url=url, headers=json.loads(headers), method='DELETE')
-
-    if info['status'] != 204:
-        module.fail_json(msg="Fail: %s" % ("Status: " + str(info['msg']) + ", Message: " + str(info['body'])))
-
-    try:
-        content = to_text(response.read(), errors='surrogate_or_strict')
-    except AttributeError:
-        content = info.pop('body', '')
-
-    return info['status'], info['msg'], content, url
-
-
-def list(module, base_url, headers):
-
-    url = base_url
-
-    response, info = fetch_url(module=module, url=url, headers=json.loads(headers), method='GET')
-
-    if info['status'] != 200:
-        module.fail_json(msg="Fail: %s" % ("Status: " + str(info['msg']) + ", Message: " + str(info['body'])))
-
-    try:
-        content = to_text(response.read(), errors='surrogate_or_strict')
-    except AttributeError:
-        content = info.pop('body', '')
-
-    return info['status'], info['msg'], content, url
+def ensure(module, api):
+  changed = False
+  exists, role = api.exists('roles', 'name', module.params['name'])
+  if module.params['state'] == 'present':
+    data = {'description': module.params['description'], 'name': module.params['name'], 'permissions': module.params['permissions'], 'read_only': module.params['read_only']}
+    if exists:
+      if role != data:
+        api.update(ROLES_URI, data)
+        changed = True
+    else:
+      api.create(ROLES_URI, data)
+      changed = True
+  else:
+    if exists:
+      api.delete(ROLES_URI+'/'+module.params['name'])
+      changed = True
+  return changed
 
 
 def main():
@@ -248,53 +188,19 @@ def main():
             endpoint=dict(type='str'),
             graylog_user=dict(type='str'),
             graylog_password=dict(type='str', no_log=True),
-            allow_http=dict(type='bool', required=False, default=False),
             validate_certs=dict(type='bool', required=False, default=True),
-            action=dict(type='str', default='list', choices=['create', 'update', 'delete', 'list']),
-            name=dict(type='str'),
+            state=dict(type='str', default='present', choices=['present', 'absent']),
+            name=dict(type='str', required=True),
             description=dict(type='str'),
             permissions=dict(type='list'),
-            read_only=dict(type='str', default="false")
+            read_only=dict(type='bool', default=False)
         )
     )
 
-    endpoint = module.params['endpoint']
-    graylog_user = module.params['graylog_user']
-    graylog_password = module.params['graylog_password']
-    allow_http = module.params['allow_http']
-    action = module.params['action']
-
-    api = GraylogApi(graylog_user, graylog_password, endpoint, validate_certs=module.params['validate_certs'])
-
-    base_url = endpoint + "/api/roles"
+    api = GraylogApi(module.params['graylog_user'], module.params['graylog_password'], module.params['endpoint'], validate_certs=module.params['validate_certs'])
     api.login()
-    api_token = graylog_utils.get_token(module, endpoint, graylog_user, graylog_password, allow_http)
-    headers = '{ "Content-Type": "application/json", "X-Requested-By": "Graylog API", "Accept": "application/json", \
-                "Authorization": "Basic ' + api_token.decode() + '" }'
-
-    if action == "create":
-        status, message, content, url = create(module, base_url, headers)
-    elif action == "update":
-        status, message, content, url = update(module, base_url, headers)
-    elif action == "delete":
-        status, message, content, url = delete(module, base_url, headers)
-    elif action == "list":
-        status, message, content, url = list(module, base_url, headers)
-
-    uresp = {}
-    content = to_text(content, encoding='UTF-8')
-
-    try:
-        js = json.loads(content)
-    except ValueError:
-        js = ""
-
-    uresp['json'] = js
-    uresp['status'] = status
-    uresp['msg'] = message
-    uresp['url'] = url
-
-    module.exit_json(**uresp)
+    changed = ensure(module, api)
+    module.exit_json(changed=changed)
 
 
 if __name__ == '__main__':

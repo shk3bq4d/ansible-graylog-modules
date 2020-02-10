@@ -15,10 +15,10 @@ class GraylogApi():
             use_proxy=True, timeout=10, validate_certs=validate_certs)  
 
     def login(self):
-        url = self.endpoint + "/api/system/sessions"
+        url = '/api/system/sessions'
         payload= {'username': self.username, 'password': self.password, 'host': self.endpoint}
         session = self.create(url, payload)
-        session_string = session['session_id'] + ":session"
+        session_string = session['session_id'] + ':session'
         session_bytes = session_string.encode('utf-8')
         session_token = base64.b64encode(session_bytes)
         self.session.headers['Authorization'] = 'Basic '+session_token.decode()
@@ -27,9 +27,9 @@ class GraylogApi():
         acceptable_status = [200, 201, 204]
         try:
             if not payload:
-                response = self.session.open(method, url)
+                response = self.session.open(method, self.endpoint + url)
             else:
-                response = self.session.open(method, url, data=bytes(json.dumps(payload), encoding='utf8'))
+                response = self.session.open(method, self.endpoint + url, data=bytes(json.dumps(payload), encoding='utf8'))
         except (URLError, ConnectionResetError) as error:
             raise AnsibleError(error)
 
@@ -42,12 +42,12 @@ class GraylogApi():
         return content
 
     def exists(self, item_type, search_key, name):
-        url = self.endpoint + '/api/'+ item_type
+        url = '/api/'+ item_type
         response = self.get(url)
         for item in response[item_type]:
             if name == item[search_key]:
-                return True
-        return False
+                return True, item
+        return False, None
 
     def create(self, url, payload):
         return self.do_request(url, 'post', payload)
@@ -60,3 +60,4 @@ class GraylogApi():
 
     def get(self, url):
         return self.do_request(url, 'get')
+

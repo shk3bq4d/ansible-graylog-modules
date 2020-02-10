@@ -11,16 +11,18 @@
 
   tasks:
 
-    - name: get roles
+    - name: create Admin role
       graylog_roles:
         endpoint: "{{ endpoint }}"
         graylog_user: "{{ username }}"
         graylog_password: "{{ password }}"
-        action: list
-      register: roles_1
+        state: present
+        name: testdude
+        description: wat
+        permissions: ['sreams:read:*']
+      register: role_1
 
     - name: check roles
       assert:
         that:
-          - roles_1.roles | length == 5
-          - roles_1.roles.
+          - role_1.changed
