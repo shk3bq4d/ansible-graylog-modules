@@ -1,35 +1,62 @@
-from ansible.module_utils.urls import fetch_url, to_text
+from ansible.module_utils.urls import Request, to_text
+from urllib.error import URLError
+from ansible.errors import AnsibleError
 import json
 import base64
 
 
-def get_token(module, endpoint, username, password, allow_http):
+class GraylogApi():
 
-    headers = '{ "Content-Type": "application/json", "X-Requested-By": "Graylog API", "Accept": "application/json" }'
+    def __init__(self, username, password, endpoint, validate_certs=True):
+        self.endpoint = endpoint
+        self.username = username
+        self.password = password
+        self.session = Request(headers={ 'Content-Type': 'application/json', 'X-Requested-By': 'Graylog API', 'Accept': 'application/json' }, 
+            use_proxy=True, timeout=10, validate_certs=validate_certs)  
 
-    url = endpoint + "/api/system/sessions"
+    def login(self):
+        url = self.endpoint + "/api/system/sessions"
+        payload= {'username': self.username, 'password': self.password, 'host': self.endpoint}
+        session = self.create(url, payload)
+        session_string = session['session_id'] + ":session"
+        session_bytes = session_string.encode('utf-8')
+        session_token = base64.b64encode(session_bytes)
+        self.session.headers['Authorization'] = 'Basic '+session_token.decode()
 
-    payload = {}
-    payload['username'] = username
-    payload['password'] = password
-    payload['host'] = endpoint
+    def do_request(self, url, method, payload=None):
+        acceptable_status = [200, 201, 204]
+        try:
+            if not payload:
+                response = self.session.open(method, url)
+            else:
+                response = self.session.open(method, url, data=bytes(json.dumps(payload), encoding='utf8'))
+        except (URLError, ConnectionResetError) as error:
+            raise AnsibleError(error)
 
-    response, info = fetch_url(module=module, url=url, headers=json.loads(headers), method='POST', data=module.jsonify(payload))
+        if response.status not in acceptable_status:
+            raise AnsibleError('Status {0}, Message {1}'.format(info['msg'], info['body']))
+        try:
+            content = json.loads(to_text(response.read(), errors='surrogate_or_strict'))
+        except (AttributeError, json.decoder.JSONDecodeError):
+            content = None
+        return content
 
-    if 'urlopen error' in info['msg']:
-        module.fail_json(msg="Fail: %s" % ("Status: Connection refused"))
+    def exists(self, item_type, search_key, name):
+        url = self.endpoint + '/api/'+ item_type
+        response = self.get(url)
+        for item in response[item_type]:
+            if name == item[search_key]:
+                return True
+        return False
 
-    elif info['status'] != 200:
-        module.fail_json(msg="Fail: %s" % ("Status: " + str(info['msg']) + ", Message: " + str(info['body'])))
+    def create(self, url, payload):
+        return self.do_request(url, 'post', payload)
 
-    try:
-        content = to_text(response.read(), errors='surrogate_or_strict')
-        session = json.loads(content)
-    except AttributeError:
-        content = info.pop('body', '')
+    def update(self, url, payload):
+        return self.do_request(url, 'put', payload)
 
-    session_string = session['session_id'] + ":session"
-    session_bytes = session_string.encode('utf-8')
-    session_token = base64.b64encode(session_bytes)
+    def delete(self, url):
+        return self.do_request(url, 'delete')
 
-    return session_token
+    def get(self, url):
+        return self.do_request(url, 'get')

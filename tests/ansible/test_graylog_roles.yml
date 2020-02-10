@@ -1,13 +1,13 @@
 ---
 
 - name: test graylog roles
-  host: localhost
+  hosts: localhost
   become: false
   gather_facts: false
   vars:
     username: admin
     password: testpass
-    endpoint: localhost:9000
+    endpoint: http://localhost:9000
 
   tasks:
 
@@ -17,7 +17,6 @@
         graylog_user: "{{ username }}"
         graylog_password: "{{ password }}"
         action: list
-        allow_http: true
       register: roles_1
 
     - name: check roles

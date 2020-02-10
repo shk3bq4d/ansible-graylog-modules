@@ -159,7 +159,7 @@ import json
 import base64
 from ansible.module_utils.basic import AnsibleModule
 from ansible.module_utils.urls import fetch_url, to_text
-import ansible.module_utils.graylog as graylog_utils
+from ansible.module_utils.graylog import GraylogApi
 
 
 def create(module, base_url, headers):
@@ -264,13 +264,10 @@ def main():
     allow_http = module.params['allow_http']
     action = module.params['action']
 
-    if allow_http == True:
-      endpoint = "http://" + endpoint
-    else:
-      endpoint = "https://" + endpoint
+    api = GraylogApi(graylog_user, graylog_password, endpoint, validate_certs=module.params['validate_certs'])
 
     base_url = endpoint + "/api/roles"
-
+    api.login()
     api_token = graylog_utils.get_token(module, endpoint, graylog_user, graylog_password, allow_http)
     headers = '{ "Content-Type": "application/json", "X-Requested-By": "Graylog API", "Accept": "application/json", \
                 "Authorization": "Basic ' + api_token.decode() + '" }'
