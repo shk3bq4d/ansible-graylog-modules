@@ -32,24 +32,18 @@ options:
       - Graylog privileged user password.
     required: false
     type: str
-  allow_http:
-    description:
-      - Allow non HTTPS connexion
-    required: false
-    default: false
-    type: bool
   validate_certs:
     description:
       - Allow untrusted certificate
     required: false
     default: false
     type: bool          
-  action:
+  state:
     description:
-      - Action to take against role API.
+      - Action to take with the defined role.
     required: false
-    default: list
-    choices: [ create, update, delete, list ]
+    default: present
+    choices: [ present, absent ]
     type: str
   name:
     description:
@@ -75,15 +69,10 @@ options:
 '''
 
 EXAMPLES = '''
-# List roles
-- graylog_roles:
-    endpoint: "graylog.mydomain.com"
-    graylog_user: "username"
-    graylog_password: "password"
 
 # Create role
 - graylog_roles:
-    action: create
+    state: present
     endpoint: "graylog.mydomain.com"
     graylog_user: "username"
     graylog_password: "password"
@@ -96,7 +85,7 @@ EXAMPLES = '''
 
 # Create admin role
 - graylog_roles:
-    action: create
+    state: present
     endpoint: "graylog.mydomain.com"
     graylog_user: "username"
     graylog_password: "password"
@@ -108,7 +97,7 @@ EXAMPLES = '''
 
 # Delete role
 - graylog_roles:
-    action: delete
+    state: absent
     endpoint: "graylog.mydomain.com"
     graylog_user: "username"
     graylog_password: "password"
@@ -155,8 +144,6 @@ url:
 
 
 # import module snippets
-import json
-import base64
 from ansible.module_utils.basic import AnsibleModule
 from ansible.module_utils.graylog import GraylogApi
 from ansible.errors import AnsibleError
