@@ -335,304 +335,76 @@ url:
 
 
 # import module snippets
-import json
-import base64
 from ansible.module_utils.basic import AnsibleModule
-from ansible.module_utils.urls import fetch_url, to_text
-import ansible.module_utils.graylog as graylog_utils
+from ansible.module_utils.graylog import GraylogApi
+from ansible.errors import AnsibleError
+
+STREAMS_URI = '/api/streams/'
 
 
-def create(module, base_url, headers, index_set_id):
-
-    url = base_url
-
-    payload = {}
-
-    for key in ['title', 'description', 'remove_matches_from_default_stream', 'matching_type', 'rules']:
-        if module.params[key] is not None and module.params[key] != "":
-            payload[key] = module.params[key]
-
-    payload['index_set_id'] = index_set_id
-
-    response, info = fetch_url(module=module, url=url, headers=json.loads(headers), method='POST', data=module.jsonify(payload))
-
-    if info['status'] != 201:
-        module.fail_json(msg="Fail: %s" % ("Status: " + str(info['msg']) + ", Message: " + str(info['body'])))
-
-    try:
-        content = to_text(response.read(), errors='surrogate_or_strict')
-    except AttributeError:
-        content = info.pop('body', '')
-
-    return info['status'], info['msg'], content, url
+def clean_stream(stream):
+    clean_data = {}
+    remove_fields = ['id', 'stream_id', 'created_at', 'alert_receivers', 'alert_conditions', 'content_pack', 'outputs', 'creator_user_id', 'is_default']
+    for item in stream.keys():
+        if item not in remove_fields:
+            clean_data[item] = stream[item]
+    for item in stream['rules']:
+        rule = {}
+        for field in item.keys():
+            if field not in remove_fields:
+                rule[field] = item[field]
+        clean_data['rules'].append(rule)
+    return clean_data
 
 
-def create_rule(module, base_url, headers):
-
-    url = "/".join([base_url, module.params['stream_id'], "rules"])
-
-    payload = {}
-
-    for key in ['field', 'type', 'value', 'inverted', 'description']:
-        if module.params[key] is not None:
-            payload[key] = module.params[key]
-
-    response, info = fetch_url(module=module, url=url, headers=json.loads(headers), method='POST', data=module.jsonify(payload))
-
-    if info['status'] != 201:
-        module.fail_json(msg="Fail: %s" % ("Status: " + str(info['msg']) + ", Message: " + str(info['body'])))
-
-    try:
-        content = to_text(response.read(), errors='surrogate_or_strict')
-    except AttributeError:
-        content = info.pop('body', '')
-
-    return info['status'], info['msg'], content, url
+def generate_rule_id_map(current_rules):
+    rules_map = {}
+    for item in current_rules:
+        item['description'] = item['id']
+    return rules_map
 
 
-def update(module, base_url, headers, stream_id, title, description, remove_matches_from_default_stream, matching_type, rules, index_set_id):
+def prep_rules(rules, id_map):
+    for rule in rules:
+        if rule['description'] in id_map.keys():
+            rule['id'] = id_map['description']
+    return rules
 
-    url = "/".join([base_url, stream_id])
 
-    payload = {}
+def index_set_name_to_id(name, api):
+    resp = api.get('/api/system/indices/index_sets')
+    for item in resp['index_sets']:
+        if item['title'] == name:
+            return item['id']
+    return None
 
-    response, info = fetch_url(module=module, url=url, headers=json.loads(headers), method='GET')
 
-    if info['status'] != 200:
-        module.fail_json(msg="Fail: %s" % ("Status: " + str(info['msg']) + ", Message: " + str(info['body'])))
-
-    try:
-        content = to_text(response.read(), errors='surrogate_or_strict')
-        payload_current = json.loads(content)
-    except AttributeError:
-        content = info.pop('body', '')
-
-    if title is not None:
-        payload['title'] = title
+def ensure(module, api):
+    changed = False
+    exists, stream = api.exists('streams', 'title', module.params['title'])
+    index_set_id = index_set_name_to_id(module.params['index_set'], api)
+    if not index_set_id:
+        module.fail_json(msg='index set provided does not exist!')
+    if module.params['state'] == 'present':
+        data = {'description': module.params['description'], 'title': module.params['title'], 'rules': module.params['rules'], 
+        'remove_matches_from_default_stream': module.params['remove_matches_from_default_stream'], 'matching_type': module.params['matching_type'], 
+        'index_set_id': index_set_id, 'disabled': module.params['disabled']}
+        if exists:
+            clean_stream_data = clean_stream(stream)
+            rule_id_map = generate_rule_id_map(stream['roles'])
+            if clean_data != data:
+                data['rules'] = prep_rules(data['rules'], rule_id_map)
+                api.update(STREAMS_URI + stream['id'], data)
+                changed = True
+        else:
+            api.create(STREAMS_URI, data)
+            changed = True
     else:
-        payload['title'] = payload_current['title']
-    if description is not None:
-        payload['description'] = description
-    else:
-        payload['description'] = payload_current['description']
-    if remove_matches_from_default_stream is not None:
-        payload['remove_matches_from_default_stream'] = remove_matches_from_default_stream
-    else:
-        payload['remove_matches_from_default_stream'] = payload_current['remove_matches_from_default_stream']
-    if matching_type is not None:
-        payload['matching_type'] = matching_type
-    else:
-        payload['matching_type'] = payload_current['matching_type']
-    if rules is not None:
-        payload['rules'] = rules
-    else:
-        payload['rules'] = payload_current['rules']
-    if index_set_id is not None:
-        payload['index_set_id'] = index_set_id
-    else:
-        payload['index_set_id'] = payload_current['index_set_id']
+        if exists:
+          api.delete(ROLES_URI + stream['id'])
+          changed = True
+    return changed
 
-    response, info = fetch_url(module=module, url=url, headers=json.loads(headers), method='PUT', data=module.jsonify(payload))
-
-    if info['status'] != 200:
-        module.fail_json(msg="Fail: %s" % ("Status: " + str(info['msg']) + ", Message: " + str(info['body'])))
-
-    try:
-        content = to_text(response.read(), errors='surrogate_or_strict')
-    except AttributeError:
-        content = info.pop('body', '')
-
-    return info['status'], info['msg'], content, url
-
-
-def update_rule(module, base_url, headers, stream_id, rule_id, field, type, value, inverted, description):
-
-    payload = {}
-
-    url = "/".join([base_url, stream_id, "rules", rule_id])
-
-    response, info = fetch_url(module=module, url=url, headers=json.loads(headers), method='GET')
-
-    if info['status'] != 200:
-        module.fail_json(msg="Fail: %s" % ("Status: " + str(info['msg']) + ", Message: " + str(info['body'])))
-
-    try:
-        content = to_text(response.read(), errors='surrogate_or_strict')
-        payload_current = json.loads(content)
-    except AttributeError:
-        content = info.pop('body', '')
-
-    if field is not None:
-        payload['field'] = field
-    else:
-        payload['field'] = payload_current['field']
-    if type is not None:
-        payload['type'] = type
-    else:
-        payload['type'] = payload_current['type']
-    if value is not None:
-        payload['value'] = value
-    else:
-        payload['value'] = payload_current['value']
-    if inverted is not None:
-        payload['inverted'] = inverted
-    else:
-        payload['inverted'] = payload_current['inverted']
-    if description is not None:
-        payload['description'] = description
-    else:
-        payload['description'] = payload_current['description']
-
-    response, info = fetch_url(module=module, url=url, headers=json.loads(headers), method='PUT', data=module.jsonify(payload))
-
-    if info['status'] != 200:
-        module.fail_json(msg="Fail: %s" % ("Status: " + str(info['msg']) + ", Message: " + str(info['body'])))
-
-    try:
-        content = to_text(response.read(), errors='surrogate_or_strict')
-    except AttributeError:
-        content = info.pop('body', '')
-
-    return info['status'], info['msg'], content, url
-
-
-def delete(module, base_url, headers, stream_id):
-
-    url = "/".join([base_url, stream_id])
-
-    response, info = fetch_url(module=module, url=url, headers=json.loads(headers), method='DELETE')
-
-    if info['status'] != 204:
-        module.fail_json(msg="Fail: %s" % ("Status: " + str(info['msg']) + ", Message: " + str(info['body'])))
-
-    try:
-        content = to_text(response.read(), errors='surrogate_or_strict')
-    except AttributeError:
-        content = info.pop('body', '')
-
-    return info['status'], info['msg'], content, url
-
-
-def delete_rule(module, base_url, headers, stream_id, rule_id):
-
-    url = "/".join([base_url, stream_id, "rules", rule_id])
-
-    response, info = fetch_url(module=module, url=url, headers=json.loads(headers), method='DELETE')
-
-    if info['status'] != 204:
-        module.fail_json(msg="Fail: %s" % ("Status: " + str(info['msg']) + ", Message: " + str(info['body'])))
-
-    try:
-        content = to_text(response.read(), errors='surrogate_or_strict')
-    except AttributeError:
-        content = info.pop('body', '')
-
-    return info['status'], info['msg'], content, url
-
-
-def start(module, base_url, headers, stream_id):
-
-    url = "/".join([base_url, stream_id, "resume"])
-
-    response, info = fetch_url(module=module, url=url, headers=json.loads(headers), method='POST')
-
-    if info['status'] != 200:
-        module.fail_json(msg="Fail: %s" % ("Status: " + str(info['msg']) + ", Message: " + str(info['body'])))
-
-    try:
-        content = to_text(response.read(), errors='surrogate_or_strict')
-    except AttributeError:
-        content = info.pop('body', '')
-
-    return info['status'], info['msg'], content, url
-
-
-def pause(module, base_url, headers, stream_id):
-
-    url = "/".join([base_url, stream_id, "pause"])
-
-    response, info = fetch_url(module=module, url=url, headers=json.loads(headers), method='POST')
-
-    if info['status'] != 200:
-        module.fail_json(msg="Fail: %s" % ("Status: " + str(info['msg']) + ", Message: " + str(info['body'])))
-
-    try:
-        content = to_text(response.read(), errors='surrogate_or_strict')
-    except AttributeError:
-        content = info.pop('body', '')
-
-    return info['status'], info['msg'], content, url
-
-
-def list(module, base_url, headers, stream_id):
-
-    if stream_id is not None:
-        url = "/".join([base_url, stream_id])
-    else:
-        url = base_url
-
-    response, info = fetch_url(module=module, url=url, headers=json.loads(headers), method='GET')
-
-    if info['status'] != 200:
-        module.fail_json(msg="Fail: %s" % ("Status: " + str(info['msg']) + ", Message: " + str(info['body'])))
-
-    try:
-        content = to_text(response.read(), errors='surrogate_or_strict')
-    except AttributeError:
-        content = info.pop('body', '')
-
-    return info['status'], info['msg'], content, url
-
-
-def query_streams(module, base_url, headers, stream_name):
-
-    url = base_url
-
-    response, info = fetch_url(module=module, url=url, headers=json.loads(headers), method='GET')
-
-    if info['status'] != 200:
-        module.fail_json(msg="Fail: %s" % ("Status: " + str(info['msg']) + ", Message: " + str(info['body'])))
-
-    try:
-        content = to_text(response.read(), errors='surrogate_or_strict')
-        streams = json.loads(content)
-    except AttributeError:
-        content = info.pop('body', '')
-
-    stream_id = ""
-    if streams is not None:
-
-        i = 0
-        while i < len(streams['streams']):
-            stream = streams['streams'][i]
-            if stream_name == stream['title']:
-                stream_id = stream['id']
-                break
-            i += 1
-
-    return stream_id
-
-
-def default_index_set(module, endpoint, base_url, headers):
-
-    url = "https://%s/api/system/indices/index_sets?skip=0&limit=0&stats=false" % (endpoint)
-
-    response, info = fetch_url(module=module, url=url, headers=json.loads(headers), method='GET')
-
-    if info['status'] != 200:
-        module.fail_json(msg="Fail: %s" % ("Status: " + str(info['msg']) + ", Message: " + str(info['body'])))
-
-    try:
-        content = to_text(response.read(), errors='surrogate_or_strict')
-        indices = json.loads(content)
-    except AttributeError:
-        content = info.pop('body', '')
-
-    default_index_set_id = ""
-    if indices is not None:
-        default_index_set_id = indices['index_sets'][0]['id']
-
-    return default_index_set_id
 
 
 def main():
@@ -641,94 +413,27 @@ def main():
             endpoint=dict(type='str'),
             graylog_user=dict(type='str'),
             graylog_password=dict(type='str', no_log=True),
-            allow_http=dict(type='bool', required=False, default=False),
             validate_certs=dict(type='bool', required=False, default=True),
-            action=dict(type='str', required=False, default='list', choices=['create', 'create_rule', 'start', 'pause',
-                        'update', 'update_rule', 'delete', 'delete_rule', 'list', 'query_streams']),
-            stream_id=dict(type='str'),
-            stream_name=dict(type='str'),
-            rule_id=dict(type='str'),
+            state=dict(type='str', required=False, default='present', choices=['present', 'absent']),
             title=dict(type='str'),
-            field=dict(type='str'),
-            type=dict(type='int', default=1),
-            value=dict(type='str'),
-            index_set_id=dict(type='str'),
-            inverted=dict(type='bool', default=False),
             description=dict(type='str'),
+            disabled=dict(type='bool', default=False),
+            index_set=dict(type='str', default='Default index set'),
             remove_matches_from_default_stream=dict(type='bool', default=False),
             matching_type=dict(type='str'),
             rules=dict(type='list')
         )
     )
 
-    endpoint = module.params['endpoint']
-    graylog_user = module.params['graylog_user']
-    graylog_password = module.params['graylog_password']
-    action = module.params['action']
-    stream_id = module.params['stream_id']
-    stream_name = module.params['stream_name']
-    rule_id = module.params['rule_id']
-    title = module.params['title']
-    field = module.params['field']
-    type = module.params['type']
-    value = module.params['value']
-    index_set_id = module.params['index_set_id']
-    inverted = module.params['inverted']
-    description = module.params['description']
-    remove_matches_from_default_stream = module.params['remove_matches_from_default_stream']
-    matching_type = module.params['matching_type']
-    rules = module.params['rules']
-    allow_http = module.params['allow_http']
-
-    if allow_http == True:
-      endpoint = "http://" + endpoint
-    else:
-      endpoint = "https://" + endpoint
-
-    base_url = endpoint + "/api/streams"
-
-    api_token = graylog_utils.get_token(module, endpoint, graylog_user, graylog_password)
-    headers = '{ "Content-Type": "application/json", "X-Requested-By": "Graylog API", "Accept": "application/json", \
-                "Authorization": "Basic ' + api_token.decode() + '" }'
-
-    if action == "create":
-        if index_set_id is None:
-            index_set_id = default_index_set(module, endpoint, base_url, headers)
-        status, message, content, url = create(module, base_url, headers, index_set_id)
-    elif action == "create_rule":
-        status, message, content, url = create_rule(module, base_url, headers)
-    elif action == "update":
-        status, message, content, url = update(module, base_url, headers, stream_id, title, description, remove_matches_from_default_stream, matching_type, rules, index_set_id)
-    elif action == "update_rule":
-        status, message, content, url = update_rule(module, base_url, headers, stream_id, rule_id, field, type, value, inverted, description)
-    elif action == "delete":
-        status, message, content, url = delete(module, base_url, headers, stream_id)
-    elif action == "delete_rule":
-        status, message, content, url = delete_rule(module, base_url, headers, stream_id, rule_id)
-    elif action == "start":
-        status, message, content, url = start(module, base_url, headers, stream_id)
-    elif action == "pause":
-        status, message, content, url = pause(module, base_url, headers, stream_id)
-    elif action == "list":
-        status, message, content, url = list(module, base_url, headers, stream_id)
-    elif action == "query_streams":
-        stream_id = query_streams(module, base_url, headers, stream_name)
-        status, message, content, url = list(module, base_url, headers, stream_id)
-
-    uresp = {}
-    content = to_text(content, encoding='UTF-8')
-
     try:
-        js = json.loads(content)
-    except ValueError:
-        js = ""
-
-    uresp['json'] = js
-    uresp['status'] = status
-    uresp['msg'] = message
-    uresp['url'] = url
-
-    module.exit_json(**uresp)
+      api = GraylogApi(module.params['graylog_user'], module.params['graylog_password'], module.params['endpoint'], validate_certs=module.params['validate_certs'])
+      api.login()
+      if module.params['matching_type']:
+        module.params['matching_type'] = module.params['matching_type'].upper()
+      changed = ensure(module, api)
+    except AnsibleError as error:
+      module.fail_json(msg='unexpected error: ' + str(error))
+    module.exit_json(changed=changed)
 
 
 if __name__ == '__main__':

@@ -1,0 +1,48 @@
+---
+
+- name: test graylog roles
+  hosts: localhost
+  become: false
+  gather_facts: false
+  vars:
+    username: admin
+    password: testpass
+    endpoint: http://localhost:9000
+
+  tasks:
+
+    - name: test delete stream
+      graylog_streams:
+        endpoint: "{{ endpoint }}"
+        graylog_user: "{{ username }}"
+        graylog_password: "{{ password }}"
+        state: present
+        title: teststream
+        description: teststream test
+      register: stream
+
+    - name: check delete stream
+      assert:
+        that:
+          - not stream.changed
+
+    - name: test create stream
+      graylog_streams:
+        endpoint: "{{ endpoint }}"
+        graylog_user: "{{ username }}"
+        graylog_password: "{{ password }}"
+        state: present
+        title: teststream
+        description: teststream test
+        rules:
+          - field: test
+            description: what
+            type: 1
+            value: "whatatt"
+            inverted: False
+      register: stream
+
+    - name: check create stream
+      assert:
+        that:
+          - stream.changed
