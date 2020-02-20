@@ -1,10 +1,5 @@
 from ansible.module_utils.urls import Request, to_text
-#compat with python2
-try:
-    from urllib.error import URLError
-except ImportError:
-    import urllib2
-    URLError = urllib2.URLError
+from urllib.error import URLError
 import json
 import base64
 
