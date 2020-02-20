@@ -11,6 +11,19 @@
 
   tasks:
 
+    - name: check roles
+      graylog_roles_info:
+        endpoint: "{{ endpoint }}"
+        graylog_user: "{{ username }}"
+        graylog_password: "{{ password }}"
+      register: roles
+
+    - name: check graylog_roles_info data
+      assert:
+        that:
+          - roles.roles | length == 5
+          - roles.roles[0]['name'] == 'Admin'
+
     - name: delete testdude role
       graylog_roles:
         endpoint: "{{ endpoint }}"
