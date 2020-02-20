@@ -4,6 +4,7 @@ Ansible modules for the [Graylog2/graylog2-server](https://github.com/graylog2/g
 A full example playbook can be found in `main.yml`.
 
 ### In Progress
+Currently graylog_roles has been rewritten to make it more ansible like and graylog_roles_info has been added.
 
 * Indices
 * Inputs
