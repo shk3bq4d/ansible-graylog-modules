@@ -153,9 +153,11 @@ ROLES_URI = '/api/roles/'
 def ensure(module, api):
   changed = False
   exists, role = api.exists('roles', 'name', module.params['name'])
+  #user sorted to ensure data is in the same order
   if module.params['state'] == 'present':
-    data = {'description': module.params['description'], 'name': module.params['name'], 'permissions': module.params['permissions'], 'read_only': module.params['read_only']}
+    data = {'description': module.params['description'], 'name': module.params['name'], 'permissions': sorted(module.params['permissions']), 'read_only': module.params['read_only']}
     if exists:
+      role['permissions'] = sorted(role['permissions'])
       if role != data:
         api.update(ROLES_URI + module.params['name'], data)
         changed = True
