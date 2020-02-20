@@ -41,7 +41,6 @@ options:
 
 from ansible.module_utils.basic import AnsibleModule
 from ansible.module_utils.graylog import GraylogApi
-from ansible.errors import AnsibleError
 
 ROLES_URI = '/api/roles'
 
