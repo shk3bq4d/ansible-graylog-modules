@@ -146,7 +146,6 @@ url:
 # import module snippets
 from ansible.module_utils.basic import AnsibleModule
 from ansible.module_utils.graylog import GraylogApi
-from ansible.errors import AnsibleError
 
 ROLES_URI = '/api/roles/'
 
@@ -188,7 +187,7 @@ def main():
       api = GraylogApi(module.params['graylog_user'], module.params['graylog_password'], module.params['endpoint'], validate_certs=module.params['validate_certs'])
       api.login()
       changed = ensure(module, api)
-    except AnsibleError as error:
+    except Exception as error:
       module.fail_json(msg='unexpected error: ' + str(error))
     module.exit_json(changed=changed)
 

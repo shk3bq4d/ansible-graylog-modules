@@ -59,7 +59,7 @@ def main():
         api = GraylogApi(module.params['graylog_user'], module.params['graylog_password'], module.params['endpoint'], validate_certs=module.params['validate_certs'])
         api.login()
         roles = api.get(ROLES_URI)['roles']
-    except AnsibleError as error:
+    except Exception as error:
       module.fail_json(msg='unexpected error: ' + str(error))
     module.exit_json(changed=False, roles=roles)
 

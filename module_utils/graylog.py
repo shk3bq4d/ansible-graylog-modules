@@ -1,6 +1,10 @@
 from ansible.module_utils.urls import Request, to_text
-from urllib.error import URLError
-from ansible.errors import AnsibleError
+#compat with python2
+try:
+    from urllib.error import URLError
+except ImportError:
+    import urllib2
+    URLError = urllib2.URLError
 import json
 import base64
 
@@ -31,10 +35,10 @@ class GraylogApi():
             else:
                 response = self.session.open(method, self.endpoint + url, data=bytes(json.dumps(payload), encoding='utf8'))
         except (URLError, ConnectionResetError) as error:
-            raise AnsibleError(error)
+            raise Exception(error)
 
         if response.status not in acceptable_status:
-            raise AnsibleError('Status {0}, Message {1}'.format(info['msg'], info['body']))
+            raise Exception('Status {0}, Message {1}'.format(info['msg'], info['body']))
         try:
             content = json.loads(to_text(response.read(), errors='surrogate_or_strict'))
         except (AttributeError, json.decoder.JSONDecodeError):
