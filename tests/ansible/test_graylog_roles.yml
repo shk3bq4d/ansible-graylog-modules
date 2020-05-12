@@ -45,7 +45,7 @@
         graylog_user: "{{ username }}"
         graylog_password: "{{ password }}"
         state: present
-        name: testdude
+        name: test dude
         description: wat
         permissions: ['sreams:read:*']
       register: role
@@ -61,7 +61,7 @@
         graylog_user: "{{ username }}"
         graylog_password: "{{ password }}"
         state: present
-        name: testdude
+        name: test dude
         description: wat
         permissions: ['sreams:read:*']
       register: role
@@ -77,7 +77,7 @@
         graylog_user: "{{ username }}"
         graylog_password: "{{ password }}"
         state: present
-        name: testdude
+        name: test dude
         description: wat
         permissions: ['sreams:read:*', 'views:read:*']
       register: role
@@ -93,7 +93,7 @@
         graylog_user: "{{ username }}"
         graylog_password: "{{ password }}"
         state: present
-        name: testdude
+        name: test dude
         description: wat
         permissions: ['sreams:read:*', 'views:read:*']
       register: role
@@ -109,7 +109,7 @@
         graylog_user: "{{ username }}"
         graylog_password: "{{ password }}"
         state: absent
-        name: testdude
+        name: test dude
       register: role
 
     - name: check roles
