@@ -1,7 +1,7 @@
 version: "3.7"
 services:
   graylog:
-    image: graylog/graylog:3.2
+    image: docker.io/graylog/graylog:3.2
     environment:
       GRAYLOG_ELASTICSEARCH_HOSTS: http://elasticsearch:9200
       GRAYLOG_PASSWORD_SECRET: hP8hqbG85evhEJil4bdkXdcTG0UrPy1YYpRESYru0HoSMFcWMaC2pxlabi2Uz6Mlb3jpFh7m0VRUlPjnED4KcluoSMclQLZD
@@ -10,11 +10,11 @@ services:
     ports:
       - 9000:9000
   mongo:
-    image: mongo:latest
+    image: docker.io/mongo:latest
     ports:
       - 27017:27017
   elasticsearch:
-    image: elasticsearch:6.8.6
+    image: docker.io/elasticsearch:6.8.6
     environment:
       discovery.type: single-node
     ulimits:

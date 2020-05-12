@@ -1,5 +1,6 @@
 from ansible.module_utils.urls import Request, to_text
 from urllib.error import URLError
+import urllib
 import json
 import base64
 
@@ -26,9 +27,9 @@ class GraylogApi():
         acceptable_status = [200, 201, 204]
         try:
             if not payload:
-                response = self.session.open(method, self.endpoint + url)
+                response = self.session.open(method, self.endpoint + urllib.parse.quote(url))
             else:
-                response = self.session.open(method, self.endpoint + url, data=bytes(json.dumps(payload), encoding='utf8'))
+                response = self.session.open(method, self.endpoint + urllib.parse.quote(url), data=bytes(json.dumps(payload), encoding='utf8'))
         except (URLError, ConnectionResetError) as error:
             raise Exception(error)
 
