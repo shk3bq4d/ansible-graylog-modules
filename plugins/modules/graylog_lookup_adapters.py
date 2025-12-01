@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/python
 # /* ex: set fenc=utf-8 expandtab ts=4 sw=4 : */
 # Copyright: (c) 2019, Whitney Champion <whitney.ellis.champion@gmail.com>
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
